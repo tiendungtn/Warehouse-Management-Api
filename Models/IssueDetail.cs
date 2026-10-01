@@ -23,5 +23,7 @@ namespace QuanLyKho.Models
         [Required]
         [Display(Name = "Số lượng xuất")]
         public int Quantity { get; set; }
+
+        public decimal UnitPrice { get; set; }
     }
 }

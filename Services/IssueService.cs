@@ -231,6 +231,8 @@ public sealed class IssueService
                 totalAmount +=
                     detail.Quantity *
                     product.Price;
+
+                detail.UnitPrice = product.Price;
             }
 
             issue.Status = "Approved";
