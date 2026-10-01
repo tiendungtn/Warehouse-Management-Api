@@ -30,9 +30,11 @@ namespace QuanLyKho.Models
 
         [Column(TypeName = "decimal(18,2)")]
         [Display(Name = "Giá")]
+        [Range(0, double.MaxValue)]
         public decimal Price { get; set; }
 
         [Display(Name = "Số lượng tồn kho")]
+        [Range(0, double.MaxValue)]
         public int StockQuantity { get; set; } = 0;
 
         // Navigation properties
