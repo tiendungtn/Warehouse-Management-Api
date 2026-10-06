@@ -60,9 +60,9 @@ public sealed class IssueService
                 x.Product?.Unit
                     ?? string.Empty,
                 x.Quantity,
-                x.Product?.Price ?? 0,
+                x.UnitPrice,
                 x.Quantity *
-                    (x.Product?.Price ?? 0)
+                    (x.UnitPrice)
             ))
             .ToList();
 

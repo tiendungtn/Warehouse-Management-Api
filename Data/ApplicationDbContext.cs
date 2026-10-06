@@ -41,6 +41,22 @@ namespace QuanLyKho.Data
                 .HasForeignKey(i => i.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<IssueDetail>()
+                .Property(x => x.UnitPrice)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<ReceiptDetail>()
+                .Property(x => x.ImportPrice)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<Product>()
+                .Property(x => x.Price)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<Invoice>()
+                .Property(x => x.TotalAmount)
+                .HasPrecision(18, 2);
+
         }
     }
 }
