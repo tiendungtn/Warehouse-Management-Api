@@ -23,4 +23,9 @@ public sealed class DashboardController
         return Ok(
             await _service.GetAsync());
     }
+    [HttpGet("analytics")]
+    public async Task<IActionResult> GetAnalytics()
+    {
+        return Ok(await _service.GetAnalyticsAsync());
+    }
 }
