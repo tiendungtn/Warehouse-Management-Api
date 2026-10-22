@@ -28,6 +28,103 @@ public sealed class CategoryService
             .ToListAsync();
     }
 
+    public async Task<PagedResult<CategoryDto>> SearchAsync(
+        CategorySearchRequest request)
+    {
+        var (page, pageSize) = PagingHelper.Normalize(
+            request.Page,
+            request.PageSize);
+
+        var query = _context.Categories
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.CategoryName.Contains(keyword) ||
+                (x.Description != null &&
+                 x.Description.Contains(keyword)));
+        }
+
+        if (request.HasProducts.HasValue)
+        {
+            query = request.HasProducts.Value
+                ? query.Where(x => x.Products.Any())
+                : query.Where(x => !x.Products.Any());
+        }
+
+        if (request.MinProductCount.HasValue)
+        {
+            query = query.Where(x =>
+                x.Products.Count >= request.MinProductCount.Value);
+        }
+
+        if (request.MaxProductCount.HasValue)
+        {
+            query = query.Where(x =>
+                x.Products.Count <= request.MaxProductCount.Value);
+        }
+
+        if (request.MinProductCount < 0 ||
+            request.MaxProductCount < 0)
+        {
+            throw new ArgumentException(
+                "Số lượng sản phẩm không được âm.");
+        }
+
+        if (request.MinProductCount.HasValue &&
+            request.MaxProductCount.HasValue &&
+            request.MinProductCount > request.MaxProductCount)
+        {
+            throw new ArgumentException(
+                "Số lượng sản phẩm tối thiểu không được lớn hơn tối đa.");
+        }
+
+        var descending = string.Equals(
+            request.SortOrder,
+            "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        query = request.SortBy.Trim().ToLowerInvariant() switch
+        {
+            "count" => descending
+                ? query.OrderByDescending(x => x.Products.Count)
+                : query.OrderBy(x => x.Products.Count),
+
+            "name" => descending
+                ? query.OrderByDescending(x => x.CategoryName)
+                : query.OrderBy(x => x.CategoryName),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là name hoặc count.")
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new CategoryDto(
+                x.Id,
+                x.CategoryName,
+                x.Description,
+                x.Products.Count))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<CategoryDto>(
+            items,
+            page,
+            pageSize,
+            totalItems,
+            totalPages);
+    }
+
     public async Task<CategoryDto> GetByIdAsync(int id)
     {
         return await _context.Categories

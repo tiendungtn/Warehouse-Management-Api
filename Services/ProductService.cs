@@ -46,6 +46,145 @@ public sealed class ProductService
             .ToListAsync();
     }
 
+    public async Task<PagedResult<ProductDto>> SearchAsync(
+        ProductSearchRequest request)
+    {
+        var (page, pageSize) = PagingHelper.Normalize(
+            request.Page,
+            request.PageSize);
+
+        var query = _context.Products
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.ProductCode.Contains(keyword) ||
+                x.ProductName.Contains(keyword) ||
+                x.Unit.Contains(keyword));
+        }
+
+        if (request.CategoryId.HasValue)
+        {
+            query = query.Where(x =>
+                x.CategoryId == request.CategoryId.Value);
+        }
+
+        if (request.MinPrice.HasValue)
+            query = query.Where(x => x.Price >= request.MinPrice.Value);
+
+        if (request.MaxPrice.HasValue)
+            query = query.Where(x => x.Price <= request.MaxPrice.Value);
+
+        if (request.MinStock.HasValue)
+            query = query.Where(x =>
+                x.StockQuantity >= request.MinStock.Value);
+
+        if (request.MaxStock.HasValue)
+            query = query.Where(x =>
+                x.StockQuantity <= request.MaxStock.Value);
+
+        switch (request.StockFilter?.Trim().ToLowerInvariant())
+        {
+            case "outofstock":
+                query = query.Where(x => x.StockQuantity == 0);
+                break;
+
+            case "lowstock":
+                query = query.Where(x =>
+                    x.StockQuantity >= 1 &&
+                    x.StockQuantity <= 5);
+                break;
+
+            case "instock":
+                query = query.Where(x => x.StockQuantity > 5);
+                break;
+
+            case null:
+            case "":
+            case "all":
+                break;
+
+            default:
+                throw new ArgumentException(
+                    "StockFilter không hợp lệ.");
+        }
+
+        if (request.MinPrice.HasValue &&
+            request.MaxPrice.HasValue &&
+            request.MinPrice > request.MaxPrice)
+        {
+            throw new ArgumentException(
+                "Giá tối thiểu không được lớn hơn giá tối đa.");
+        }
+
+        if (request.MinStock.HasValue &&
+            request.MaxStock.HasValue &&
+            request.MinStock > request.MaxStock)
+        {
+            throw new ArgumentException(
+                "Tồn kho tối thiểu không được lớn hơn tồn kho tối đa.");
+        }
+
+        var descending = string.Equals(
+            request.SortOrder,
+            "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        query = (request.SortBy?.Trim().ToLowerInvariant()) switch
+        {
+            "code" => descending
+                ? query.OrderByDescending(x => x.ProductCode)
+                : query.OrderBy(x => x.ProductCode),
+
+            "price" => descending
+                ? query.OrderByDescending(x => x.Price)
+                : query.OrderBy(x => x.Price),
+
+            "stock" => descending
+                ? query.OrderByDescending(x => x.StockQuantity)
+                : query.OrderBy(x => x.StockQuantity),
+
+            "name" or "" or null => descending
+                ? query.OrderByDescending(x => x.ProductName)
+                : query.OrderBy(x => x.ProductName),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là name, code, price hoặc stock.")
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new ProductDto(
+                x.Id,
+                x.ProductCode,
+                x.ProductName,
+                x.CategoryId,
+                x.Category != null
+                    ? x.Category.CategoryName
+                    : string.Empty,
+                x.Unit,
+                x.Price,
+                x.StockQuantity))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<ProductDto>(
+            items,
+            page,
+            pageSize,
+            totalItems,
+            totalPages);
+    }
+
     public async Task<ProductDto> GetByIdAsync(int id)
     {
         return await _context.Products

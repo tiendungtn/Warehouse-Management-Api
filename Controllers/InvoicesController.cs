@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QuanLyKho.DTOs;
 using QuanLyKho.Services;
 
 namespace QuanLyKho.Controllers;
@@ -22,6 +23,13 @@ public sealed class InvoicesController
     {
         return Ok(
             await _service.GetAllAsync());
+    }
+
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        [FromQuery] InvoiceSearchRequest request)
+    {
+        return Ok(await _service.SearchAsync(request));
     }
 
     [HttpGet("{id:int}")]

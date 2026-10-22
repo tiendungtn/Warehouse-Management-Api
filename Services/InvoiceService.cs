@@ -270,4 +270,115 @@ public sealed class InvoiceService
             $"Invoice_{invoice.InvoiceCode}.pdf"
         );
     }
+
+    public async Task<PagedResult<InvoiceListDto>> SearchAsync(
+        InvoiceSearchRequest request)
+    {
+        var (page, pageSize) =
+            PagingHelper.Normalize(request.Page, request.PageSize);
+
+        if (request.FromDate.HasValue &&
+            request.ToDate.HasValue &&
+            request.FromDate.Value.Date > request.ToDate.Value.Date)
+            throw new ArgumentException(
+                "Ngày bắt đầu không được sau ngày kết thúc.");
+
+        if (request.MinAmount < 0 || request.MaxAmount < 0)
+            throw new ArgumentException("Tổng tiền không được âm.");
+
+        if (request.MinAmount.HasValue &&
+            request.MaxAmount.HasValue &&
+            request.MinAmount > request.MaxAmount)
+            throw new ArgumentException(
+                "Tổng tiền tối thiểu không được lớn hơn tối đa.");
+
+        var query = _context.Invoices
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.InvoiceCode.Contains(keyword) ||
+                x.CustomerName.Contains(keyword) ||
+                (x.Issue != null &&
+                 x.Issue.IssueCode.Contains(keyword)));
+        }
+
+        if (request.FromDate.HasValue)
+        {
+            var from = DateTime.SpecifyKind(
+                request.FromDate.Value.Date, DateTimeKind.Utc);
+            query = query.Where(x => x.CreatedDate >= from);
+        }
+
+        if (request.ToDate.HasValue)
+        {
+            var until = DateTime.SpecifyKind(
+                request.ToDate.Value.Date.AddDays(1),
+                DateTimeKind.Utc);
+            query = query.Where(x => x.CreatedDate < until);
+        }
+
+        if (request.MinAmount.HasValue)
+            query = query.Where(
+                x => x.TotalAmount >= request.MinAmount.Value);
+
+        if (request.MaxAmount.HasValue)
+            query = query.Where(
+                x => x.TotalAmount <= request.MaxAmount.Value);
+
+        var descending = string.Equals(
+            request.SortOrder, "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "date";
+
+        var ordered = sortBy switch
+        {
+            "code" => descending
+                ? query.OrderByDescending(x => x.InvoiceCode)
+                : query.OrderBy(x => x.InvoiceCode),
+
+            "customer" => descending
+                ? query.OrderByDescending(x => x.CustomerName)
+                : query.OrderBy(x => x.CustomerName),
+
+            "amount" => descending
+                ? query.OrderByDescending(x => x.TotalAmount)
+                : query.OrderBy(x => x.TotalAmount),
+
+            "date" => descending
+                ? query.OrderByDescending(x => x.CreatedDate)
+                : query.OrderBy(x => x.CreatedDate),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là date, code, customer hoặc amount.")
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var items = await ordered
+            .ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new InvoiceListDto(
+                x.Id,
+                x.InvoiceCode,
+                x.IssueId,
+                x.Issue != null ? x.Issue.IssueCode : string.Empty,
+                x.CustomerName,
+                x.TotalAmount,
+                x.CreatedDate))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<InvoiceListDto>(
+            items, page, pageSize, totalItems, totalPages);
+    }
+
 }

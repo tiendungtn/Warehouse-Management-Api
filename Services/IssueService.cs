@@ -331,4 +331,114 @@ public sealed class IssueService
 
         return code;
     }
+
+    public async Task<PagedResult<IssueListDto>> SearchAsync(
+        IssueSearchRequest request)
+    {
+        var (page, pageSize) =
+            PagingHelper.Normalize(request.Page, request.PageSize);
+
+        if (request.FromDate.HasValue &&
+            request.ToDate.HasValue &&
+            request.FromDate.Value.Date > request.ToDate.Value.Date)
+            throw new ArgumentException(
+                "Ngày bắt đầu không được sau ngày kết thúc.");
+
+        var query = _context.Issues
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.IssueCode.Contains(keyword) ||
+                x.Reason.Contains(keyword) ||
+                (x.Creator != null &&
+                 x.Creator.Fullname.Contains(keyword)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            var status = request.Status.Trim();
+            query = query.Where(x => x.Status == status);
+        }
+
+        if (request.HasInvoice.HasValue)
+        {
+            query = request.HasInvoice.Value
+                ? query.Where(x => x.Invoice != null)
+                : query.Where(x => x.Invoice == null);
+        }
+
+        if (request.FromDate.HasValue)
+        {
+            var from = DateTime.SpecifyKind(
+                request.FromDate.Value.Date, DateTimeKind.Utc);
+            query = query.Where(x => x.IssueDate >= from);
+        }
+
+        if (request.ToDate.HasValue)
+        {
+            var until = DateTime.SpecifyKind(
+                request.ToDate.Value.Date.AddDays(1),
+                DateTimeKind.Utc);
+            query = query.Where(x => x.IssueDate < until);
+        }
+
+        var descending = string.Equals(
+            request.SortOrder, "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "date";
+
+        var ordered = sortBy switch
+        {
+            "code" => descending
+                ? query.OrderByDescending(x => x.IssueCode)
+                : query.OrderBy(x => x.IssueCode),
+
+            "status" => descending
+                ? query.OrderByDescending(x => x.Status)
+                : query.OrderBy(x => x.Status),
+
+            "reason" => descending
+                ? query.OrderByDescending(x => x.Reason)
+                : query.OrderBy(x => x.Reason),
+
+            "date" => descending
+                ? query.OrderByDescending(x => x.IssueDate)
+                : query.OrderBy(x => x.IssueDate),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là date, code, status hoặc reason.")
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var items = await ordered
+            .ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new IssueListDto(
+                x.Id,
+                x.IssueCode,
+                x.Reason,
+                x.CreatedBy,
+                x.Creator != null
+                    ? x.Creator.Fullname
+                    : string.Empty,
+                x.IssueDate,
+                x.Status,
+                x.Invoice != null))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<IssueListDto>(
+            items, page, pageSize, totalItems, totalPages);
+    }
+
 }

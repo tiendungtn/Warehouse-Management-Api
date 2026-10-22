@@ -256,4 +256,235 @@ public sealed class ReportService
             value.Replace("\"", "\"\"") +
             "\"";
     }
+
+    public async Task<PagedResult<StockReportItemDto>> SearchStockAsync(
+        StockSearchRequest request)
+    {
+        var (page, pageSize) =
+            PagingHelper.Normalize(request.Page, request.PageSize);
+
+        if (request.MinPrice < 0 || request.MaxPrice < 0)
+            throw new ArgumentException("Đơn giá không được âm.");
+
+        if (request.MinStock < 0 || request.MaxStock < 0)
+            throw new ArgumentException("Tồn kho không được âm.");
+
+        if (request.MinPrice.HasValue &&
+            request.MaxPrice.HasValue &&
+            request.MinPrice > request.MaxPrice)
+            throw new ArgumentException(
+                "Đơn giá tối thiểu không được lớn hơn tối đa.");
+
+        if (request.MinStock.HasValue &&
+            request.MaxStock.HasValue &&
+            request.MinStock > request.MaxStock)
+            throw new ArgumentException(
+                "Tồn kho tối thiểu không được lớn hơn tối đa.");
+
+        var query = _context.Products
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.ProductCode.Contains(keyword) ||
+                x.ProductName.Contains(keyword));
+        }
+
+        if (request.CategoryId.HasValue)
+            query = query.Where(
+                x => x.CategoryId == request.CategoryId.Value);
+
+        if (request.MinPrice.HasValue)
+            query = query.Where(
+                x => x.Price >= request.MinPrice.Value);
+
+        if (request.MaxPrice.HasValue)
+            query = query.Where(
+                x => x.Price <= request.MaxPrice.Value);
+
+        if (request.MinStock.HasValue)
+            query = query.Where(
+                x => x.StockQuantity >= request.MinStock.Value);
+
+        if (request.MaxStock.HasValue)
+            query = query.Where(
+                x => x.StockQuantity <= request.MaxStock.Value);
+
+        switch (request.StockFilter?.Trim().ToLowerInvariant())
+        {
+            case null:
+            case "":
+            case "all":
+                break;
+
+            case "outofstock":
+                query = query.Where(x => x.StockQuantity == 0);
+                break;
+
+            case "lowstock":
+                query = query.Where(
+                    x => x.StockQuantity >= 1 &&
+                         x.StockQuantity <= 5);
+                break;
+
+            case "instock":
+                query = query.Where(x => x.StockQuantity > 5);
+                break;
+
+            default:
+                throw new ArgumentException(
+                    "StockFilter phải là all, outofstock, lowstock hoặc instock.");
+        }
+
+        var descending = string.Equals(
+            request.SortOrder, "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "stock";
+
+        var ordered = sortBy switch
+        {
+            "code" => descending
+                ? query.OrderByDescending(x => x.ProductCode)
+                : query.OrderBy(x => x.ProductCode),
+
+            "name" => descending
+                ? query.OrderByDescending(x => x.ProductName)
+                : query.OrderBy(x => x.ProductName),
+
+            "price" => descending
+                ? query.OrderByDescending(x => x.Price)
+                : query.OrderBy(x => x.Price),
+
+            "stock" => descending
+                ? query.OrderByDescending(x => x.StockQuantity)
+                : query.OrderBy(x => x.StockQuantity),
+
+            "value" => descending
+                ? query.OrderByDescending(
+                    x => x.StockQuantity * x.Price)
+                : query.OrderBy(
+                    x => x.StockQuantity * x.Price),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là code, name, price, stock hoặc value.")
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var items = await ordered
+            .ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new StockReportItemDto(
+                x.Id,
+                x.ProductCode,
+                x.ProductName,
+                x.Category != null
+                    ? x.Category.CategoryName
+                    : string.Empty,
+                x.Unit,
+                x.Price,
+                x.StockQuantity,
+                x.StockQuantity * x.Price,
+                x.StockQuantity == 0
+                    ? "OutOfStock"
+                    : x.StockQuantity <= 5
+                        ? "LowStock"
+                        : "InStock"))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<StockReportItemDto>(
+            items, page, pageSize, totalItems, totalPages);
+    }
+
+
+    public async Task<StockReportDto> GetStockSummaryAsync(
+        StockSearchRequest request)
+    {
+        // Tái sử dụng cùng bộ lọc và thống kê trên toàn bộ kết quả.
+        var query = _context.Products
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+            query = query.Where(x =>
+                x.ProductCode.Contains(keyword) ||
+                x.ProductName.Contains(keyword));
+
+        if (request.CategoryId.HasValue)
+            query = query.Where(
+                x => x.CategoryId == request.CategoryId.Value);
+
+        if (request.MinPrice.HasValue)
+            query = query.Where(x => x.Price >= request.MinPrice.Value);
+
+        if (request.MaxPrice.HasValue)
+            query = query.Where(x => x.Price <= request.MaxPrice.Value);
+
+        if (request.MinStock.HasValue)
+            query = query.Where(
+                x => x.StockQuantity >= request.MinStock.Value);
+
+        if (request.MaxStock.HasValue)
+            query = query.Where(
+                x => x.StockQuantity <= request.MaxStock.Value);
+
+        switch (request.StockFilter?.Trim().ToLowerInvariant())
+        {
+            case null:
+            case "":
+            case "all":
+                break;
+            case "outofstock":
+                query = query.Where(x => x.StockQuantity == 0);
+                break;
+            case "lowstock":
+                query = query.Where(
+                    x => x.StockQuantity >= 1 && x.StockQuantity <= 5);
+                break;
+            case "instock":
+                query = query.Where(x => x.StockQuantity > 5);
+                break;
+            default:
+                throw new ArgumentException("StockFilter không hợp lệ.");
+        }
+
+        var totalProducts = await query.CountAsync();
+
+        var totalQuantity = await query
+            .Select(x => (int?)x.StockQuantity)
+            .SumAsync() ?? 0;
+
+        var totalValuation = await query
+            .Select(x => (decimal?)(x.StockQuantity * x.Price))
+            .SumAsync() ?? 0m;
+
+        var outOfStockCount = await query
+            .CountAsync(x => x.StockQuantity == 0);
+
+        var lowStockCount = await query
+            .CountAsync(x =>
+                x.StockQuantity >= 1 && x.StockQuantity <= 5);
+
+        // Summary chỉ chứa các tổng số liệu; danh sách phân trang
+        // được trả riêng từ SearchStockAsync.
+        return new StockReportDto(
+            totalProducts,
+            totalQuantity,
+            totalValuation,
+            outOfStockCount,
+            lowStockCount,
+            Array.Empty<StockReportItemDto>());
+    }
+
 }

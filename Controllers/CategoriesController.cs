@@ -63,4 +63,12 @@ public sealed class CategoriesController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        [FromQuery] CategorySearchRequest request)
+    {
+        return Ok(await _service.SearchAsync(request));
+    }
+
 }

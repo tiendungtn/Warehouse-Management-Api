@@ -26,6 +26,14 @@ public sealed class ReceiptsController : ControllerBase
             await _service.GetAllAsync());
     }
 
+    [HttpGet("search")]
+    [Authorize(Roles = "Admin,Manager,Staff")]
+    public async Task<IActionResult> Search(
+        [FromQuery] ReceiptSearchRequest request)
+    {
+        return Ok(await _service.SearchAsync(request));
+    }
+
     [HttpGet("{id:int}")]
     [Authorize(Roles = "Admin,Manager,Staff")]
     public async Task<IActionResult> GetById(int id)

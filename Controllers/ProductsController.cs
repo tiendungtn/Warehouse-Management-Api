@@ -18,6 +18,13 @@ public sealed class ProductsController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        [FromQuery] ProductSearchRequest request)
+    {
+        return Ok(await _service.SearchAsync(request));
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search)

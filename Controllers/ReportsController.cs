@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QuanLyKho.DTOs;
 using QuanLyKho.Services;
 
 namespace QuanLyKho.Controllers;
@@ -61,4 +62,28 @@ public sealed class ReportsController
                     fromDate,
                     toDate));
     }
+
+    [HttpGet("stock/search")]
+    [Authorize(Roles = "Admin,Manager,Staff")]
+    public async Task<IActionResult> SearchStock(
+        [FromQuery] StockSearchRequest request)
+    {
+        var summary = await _service.GetStockSummaryAsync(request);
+        var result = await _service.SearchStockAsync(request);
+
+        return Ok(new
+        {
+            totalProductCount = summary.TotalProductCount,
+            totalStockQuantity = summary.TotalStockQuantity,
+            totalStockValuation = summary.TotalStockValuation,
+            outOfStockCount = summary.OutOfStockCount,
+            lowStockCount = summary.LowStockCount,
+            products = result.Items,
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalItems = result.TotalItems,
+            totalPages = result.TotalPages
+        });
+    }
+
 }

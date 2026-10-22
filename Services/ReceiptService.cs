@@ -212,4 +212,135 @@ public sealed class ReceiptService
 
         return code;
     }
+
+    public async Task<PagedResult<ReceiptListDto>> SearchAsync(
+        ReceiptSearchRequest request)
+    {
+        var (page, pageSize) =
+            PagingHelper.Normalize(request.Page, request.PageSize);
+
+        if (request.FromDate.HasValue &&
+            request.ToDate.HasValue &&
+            request.FromDate.Value.Date > request.ToDate.Value.Date)
+            throw new ArgumentException(
+                "Ngày bắt đầu không được sau ngày kết thúc.");
+
+        if (request.MinAmount < 0 || request.MaxAmount < 0)
+            throw new ArgumentException("Tổng tiền không được âm.");
+
+        if (request.MinAmount.HasValue &&
+            request.MaxAmount.HasValue &&
+            request.MinAmount > request.MaxAmount)
+            throw new ArgumentException(
+                "Tổng tiền tối thiểu không được lớn hơn tối đa.");
+
+        var query = _context.Receipts
+            .AsNoTracking()
+            .AsQueryable();
+
+        var keyword = request.Search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x =>
+                x.ReceiptCode.Contains(keyword) ||
+                x.SupplierName.Contains(keyword) ||
+                (x.Creator != null &&
+                 x.Creator.Fullname.Contains(keyword)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            var status = request.Status.Trim();
+            query = query.Where(x => x.Status == status);
+        }
+
+        if (request.FromDate.HasValue)
+        {
+            var from = DateTime.SpecifyKind(
+                request.FromDate.Value.Date, DateTimeKind.Utc);
+            query = query.Where(x => x.ReceiptDate >= from);
+        }
+
+        if (request.ToDate.HasValue)
+        {
+            var until = DateTime.SpecifyKind(
+                request.ToDate.Value.Date.AddDays(1),
+                DateTimeKind.Utc);
+            query = query.Where(x => x.ReceiptDate < until);
+        }
+
+        var amountQuery = query.Select(x => new
+        {
+            Receipt = x,
+            Amount = x.ReceiptDetails.Sum(
+                d => (decimal?)(d.Quantity * d.ImportPrice)) ?? 0m
+        });
+
+        if (request.MinAmount.HasValue)
+            amountQuery = amountQuery.Where(
+                x => x.Amount >= request.MinAmount.Value);
+
+        if (request.MaxAmount.HasValue)
+            amountQuery = amountQuery.Where(
+                x => x.Amount <= request.MaxAmount.Value);
+
+        var descending = string.Equals(
+            request.SortOrder, "desc",
+            StringComparison.OrdinalIgnoreCase);
+
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "date";
+
+        var ordered = sortBy switch
+        {
+            "code" => descending
+                ? amountQuery.OrderByDescending(x => x.Receipt.ReceiptCode)
+                : amountQuery.OrderBy(x => x.Receipt.ReceiptCode),
+
+            "supplier" => descending
+                ? amountQuery.OrderByDescending(x => x.Receipt.SupplierName)
+                : amountQuery.OrderBy(x => x.Receipt.SupplierName),
+
+            "amount" => descending
+                ? amountQuery.OrderByDescending(x => x.Amount)
+                : amountQuery.OrderBy(x => x.Amount),
+
+            "status" => descending
+                ? amountQuery.OrderByDescending(x => x.Receipt.Status)
+                : amountQuery.OrderBy(x => x.Receipt.Status),
+
+            "date" => descending
+                ? amountQuery.OrderByDescending(x => x.Receipt.ReceiptDate)
+                : amountQuery.OrderBy(x => x.Receipt.ReceiptDate),
+
+            _ => throw new ArgumentException(
+                "SortBy phải là date, code, supplier, amount hoặc status.")
+        };
+
+        var totalItems = await amountQuery.CountAsync();
+
+        var items = await ordered
+            .ThenBy(x => x.Receipt.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new ReceiptListDto(
+                x.Receipt.Id,
+                x.Receipt.ReceiptCode,
+                x.Receipt.SupplierName,
+                x.Receipt.CreatedBy,
+                x.Receipt.Creator != null
+                    ? x.Receipt.Creator.Fullname
+                    : string.Empty,
+                x.Receipt.ReceiptDate,
+                x.Receipt.Status,
+                x.Amount))
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(
+            totalItems / (double)pageSize);
+
+        return new PagedResult<ReceiptListDto>(
+            items, page, pageSize, totalItems, totalPages);
+    }
+
 }
