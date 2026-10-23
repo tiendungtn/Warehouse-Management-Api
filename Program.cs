@@ -66,7 +66,7 @@ builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<DashboardService>();
-
+builder.Services.AddScoped<PermissionService>();
 
 var app = builder.Build();
 

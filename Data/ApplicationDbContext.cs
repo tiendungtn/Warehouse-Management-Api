@@ -18,6 +18,10 @@ namespace QuanLyKho.Data
         public DbSet<Issue> Issues => Set<Issue>();
         public DbSet<IssueDetail> IssueDetails => Set<IssueDetail>();
         public DbSet<Invoice> Invoices => Set<Invoice>();
+        public DbSet<Permission> Permissions => Set<Permission>();
+        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<UserPermissionOverride> UserPermissionOverrides
+            => Set<UserPermissionOverride>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,6 +61,41 @@ namespace QuanLyKho.Data
                 .Property(x => x.TotalAmount)
                 .HasPrecision(18, 2);
 
+            modelBuilder.Entity<User>()
+                .Property(x => x.PermissionMode)
+                .HasMaxLength(20)
+                .HasDefaultValue("RoleBased")
+                .IsRequired();
+
+            modelBuilder.Entity<Permission>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<RolePermission>()
+                .HasIndex(x => new { x.Role, x.PermissionId })
+                .IsUnique();
+
+            modelBuilder.Entity<RolePermission>()
+                .HasOne(x => x.Permission)
+                .WithMany(x => x.RolePermissions)
+                .HasForeignKey(x => x.PermissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserPermissionOverride>()
+                .HasIndex(x => new { x.UserId, x.PermissionId })
+                .IsUnique();
+
+            modelBuilder.Entity<UserPermissionOverride>()
+                .HasOne(x => x.User)
+                .WithMany(x => x.PermissionOverrides)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserPermissionOverride>()
+                .HasOne(x => x.Permission)
+                .WithMany(x => x.UserOverrides)
+                .HasForeignKey(x => x.PermissionId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

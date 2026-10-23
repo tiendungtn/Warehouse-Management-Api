@@ -26,6 +26,13 @@ public sealed class CreateUserRequest
     [Required]
     [MaxLength(20)]
     public string Role { get; set; } = "Staff";
+
+    [Required]
+    [RegularExpression("^(RoleBased|Custom)$")]
+    public string PermissionMode { get; set; } = "RoleBased";
+
+    public List<UserPermissionOverrideRequest> PermissionOverrides
+    { get; set; } = new();
 }
 
 public sealed class UpdateUserRequest
@@ -39,4 +46,25 @@ public sealed class UpdateUserRequest
     public string Role { get; set; } = "Staff";
 
     public string? NewPassword { get; set; }
+
+    [Required]
+    [RegularExpression("^(RoleBased|Custom)$")]
+    public string PermissionMode { get; set; } = "RoleBased";
+
+    public List<UserPermissionOverrideRequest> PermissionOverrides
+    { get; set; } = new();
+}
+
+public sealed class UserPermissionOverrideRequest
+{
+    [Required]
+    [MaxLength(100)]
+    public string PermissionCode { get; set; } = string.Empty;
+
+    [Required]
+    [RegularExpression("^(Grant|Deny)$")]
+    public string Effect { get; set; } = string.Empty;
+
+    [MaxLength(300)]
+    public string? Reason { get; set; }
 }

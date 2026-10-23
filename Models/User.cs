@@ -20,6 +20,12 @@ namespace QuanLyKho.Models
           
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [Required, MaxLength(20)]
+        public string PermissionMode { get; set; } = "RoleBased";
+
+        public virtual ICollection<UserPermissionOverride> PermissionOverrides
+        { get; set; } = new List<UserPermissionOverride>();
+
         // navigation property
         public virtual ICollection<Receipt> Receipts { get; set; } = new List<Receipt>();
         public virtual ICollection<Issue> Issues { get; set; } = new List<Issue>();
