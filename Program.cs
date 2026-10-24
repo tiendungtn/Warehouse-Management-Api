@@ -86,6 +86,9 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<ApplicationDbContext>();
 
     DbInitializer.Initialize(db);
+
+    // Chỉ chạy sau khi migration đã tạo các bảng phân quyền.
+    await PermissionSeeder.SeedAsync(db);
 }
 
 app.Run();

@@ -12,11 +12,14 @@ public sealed class UsersController
     : ControllerBase
 {
     private readonly UserService _service;
+    private readonly PermissionService _permissionService;
 
     public UsersController(
-        UserService service)
+        UserService service,
+        PermissionService permissionService)
     {
         _service = service;
+        _permissionService = permissionService;
     }
 
     [HttpGet]
@@ -79,5 +82,34 @@ public sealed class UsersController
         }
 
         return userId;
+    }
+
+    [HttpGet("{id:int}/permissions")]
+    public async Task<IActionResult> GetPermissions(
+    int id,
+    CancellationToken cancellationToken)
+    {
+        var permissions =
+    await _permissionService.GetEffectivePermissionsAsync(id);
+
+        return Ok(permissions);
+    }
+
+    [HttpPut("{id:int}/permissions")]
+    public async Task<IActionResult> UpdatePermissions(
+        int id,
+        UpdateUserPermissionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = GetCurrentUserId();
+
+        await _permissionService.SetOverridesAsync(
+            id,
+            request.PermissionMode,
+            request.PermissionOverrides,
+            currentUserId,
+            cancellationToken);
+
+        return NoContent();
     }
 }
