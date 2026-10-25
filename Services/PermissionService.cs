@@ -106,6 +106,11 @@ public sealed class PermissionService
         if (requested.Count > 2)
             throw new InvalidOperationException(
                 "Mỗi người dùng chỉ được ghi đè tối đa 2 quyền.");
+        if (permissionMode == "RoleBased" && requested.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "RoleBased không được cấu hình quyền ghi đè cá nhân.");
+        }
 
         var normalized = requested
             .Select(x => new

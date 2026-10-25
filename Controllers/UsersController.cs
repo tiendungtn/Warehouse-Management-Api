@@ -44,13 +44,15 @@ public sealed class UsersController
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(
-        int id,
-        UpdateUserRequest request)
+    int id,
+    UpdateUserRequest request)
     {
-        return Ok(
-            await _service.UpdateAsync(
-                id,
-                request));
+        var currentUserId = GetCurrentUserId();
+
+        return Ok(await _service.UpdateAsync(
+            id,
+            request,
+            currentUserId));
     }
 
     [HttpDelete("{id:int}")]
