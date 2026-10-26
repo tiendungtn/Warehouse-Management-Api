@@ -212,4 +212,56 @@ public sealed class PermissionService
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+    public async Task<UserPermissionConfigurationDto>
+    GetConfigurationAsync(
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                x => x.Id == userId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException(
+                "Không tìm thấy người dùng.");
+
+        var rolePermissions = await _context.RolePermissions
+            .AsNoTracking()
+            .Where(x => x.Role == user.Role)
+            .Select(x => x.Permission.Code)
+            .OrderBy(x => x)
+            .ToListAsync(cancellationToken);
+
+        var overrides = await _context.UserPermissionOverrides
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .Select(x => new UserPermissionOverrideDto(
+                x.Permission.Code,
+                x.Effect,
+                x.Reason))
+            .ToListAsync(cancellationToken);
+
+        var effective = new HashSet<string>(
+            rolePermissions,
+            StringComparer.OrdinalIgnoreCase);
+
+        if (user.PermissionMode == "Custom")
+        {
+            foreach (var item in overrides)
+            {
+                if (item.Effect == "Deny")
+                    effective.Remove(item.PermissionCode);
+                else if (item.Effect == "Grant")
+                    effective.Add(item.PermissionCode);
+            }
+        }
+
+        return new UserPermissionConfigurationDto(
+            user.PermissionMode,
+            rolePermissions,
+            overrides,
+            effective.OrderBy(
+                x => x,
+                StringComparer.OrdinalIgnoreCase).ToArray());
+    }
 }

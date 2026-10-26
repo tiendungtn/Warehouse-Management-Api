@@ -91,10 +91,12 @@ public sealed class UsersController
     int id,
     CancellationToken cancellationToken)
     {
-        var permissions =
-    await _permissionService.GetEffectivePermissionsAsync(id);
+        var configuration =
+            await _permissionService.GetConfigurationAsync(
+                id,
+                cancellationToken);
 
-        return Ok(permissions);
+        return Ok(configuration);
     }
 
     [HttpPut("{id:int}/permissions")]

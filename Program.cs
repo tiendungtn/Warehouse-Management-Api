@@ -1,11 +1,13 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuanLyKho.Authorization;
 using QuanLyKho.Data;
 using QuanLyKho.Middleware;
 using QuanLyKho.Services;
 using QuestPDF.Infrastructure;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,7 +42,15 @@ builder.Services
     });
 
 
-builder.Services.AddAuthorization(); 
+builder.Services.AddAuthorization();
+
+builder.Services.AddSingleton<
+    IAuthorizationPolicyProvider,
+    PermissionPolicyProvider>();
+
+builder.Services.AddScoped<
+    IAuthorizationHandler,
+    PermissionAuthorizationHandler>();
 
 builder.Services.AddControllers();
 

@@ -111,11 +111,7 @@ public sealed class UserService
                 request.NewPassword);
         }
 
-        await ReplacePermissionOverridesAsync(
-            user,
-            request.PermissionMode,
-            request.PermissionOverrides,
-            updatedBy);
+        await ReconcilePermissionOverridesAsync(user);
 
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -330,5 +326,37 @@ public sealed class UserService
             user.Fullname,
             user.Role,
             user.CreatedAt);
+    }
+
+    private async Task ReconcilePermissionOverridesAsync(User user)
+    {
+        var overrides = await _context.UserPermissionOverrides
+            .Include(x => x.Permission)
+            .Where(x => x.UserId == user.Id)
+            .ToListAsync();
+
+        if (overrides.Count == 0)
+            return;
+
+        var permissionIds = overrides
+            .Select(x => x.PermissionId)
+            .ToArray();
+
+        var grantedIds = await _context.RolePermissions
+            .Where(x =>
+                x.Role == user.Role &&
+                permissionIds.Contains(x.PermissionId))
+            .Select(x => x.PermissionId)
+            .ToHashSetAsync();
+
+        var redundant = overrides.Where(item =>
+            (item.Effect == "Grant" &&
+             grantedIds.Contains(item.PermissionId)) ||
+            (item.Effect == "Deny" &&
+             !grantedIds.Contains(item.PermissionId))
+        ).ToList();
+
+        if (redundant.Count > 0)
+            _context.UserPermissionOverrides.RemoveRange(redundant);
     }
 }
