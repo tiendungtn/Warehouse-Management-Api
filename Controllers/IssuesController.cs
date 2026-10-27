@@ -19,7 +19,7 @@ public sealed class IssuesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:issues.view")]
     public async Task<IActionResult> GetAll()
     {
         return Ok(
@@ -27,7 +27,7 @@ public sealed class IssuesController : ControllerBase
     }
 
     [HttpGet("search")]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:issues.view")]
     public async Task<IActionResult> Search(
         [FromQuery] IssueSearchRequest request)
     {
@@ -35,7 +35,7 @@ public sealed class IssuesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:issues.view")]
     public async Task<IActionResult> GetById(
         int id)
     {
@@ -44,7 +44,7 @@ public sealed class IssuesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:issues.create")]
     public async Task<IActionResult> Create(
         IssueRequest request)
     {
@@ -62,7 +62,7 @@ public sealed class IssuesController : ControllerBase
     }
 
     [HttpPost("{id:int}/approve")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Policy = "Permission:issues.approve")]
     public async Task<IActionResult> Approve(
         int id,
         ApproveIssueRequest request)

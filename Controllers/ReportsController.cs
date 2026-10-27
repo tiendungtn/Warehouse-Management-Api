@@ -19,8 +19,7 @@ public sealed class ReportsController
     }
 
     [HttpGet("stock")]
-    [Authorize(Roles =
-        "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:reports.stock.view")]
     public async Task<IActionResult> Stock(
         [FromQuery] string? search,
         [FromQuery] int? categoryId,
@@ -34,8 +33,7 @@ public sealed class ReportsController
     }
 
     [HttpGet("stock/export")]
-    [Authorize(Roles =
-        "Admin,Manager")]
+    [Authorize(Policy = "Permission:reports.stock.export")]
     public async Task<IActionResult>
         ExportStock()
     {
@@ -50,8 +48,7 @@ public sealed class ReportsController
     }
 
     [HttpGet("revenue")]
-    [Authorize(Roles =
-        "Admin,Manager")]
+    [Authorize(Policy = "Permission:reports.revenue.view")]
     public async Task<IActionResult> Revenue(
         [FromQuery] DateTime? fromDate,
         [FromQuery] DateTime? toDate)

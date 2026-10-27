@@ -6,7 +6,7 @@ using QuanLyKho.Services;
 namespace QuanLyKho.Controllers;
 [ApiController]
 [Route("api/invoices")]
-[Authorize(Roles = "Admin,Manager,Staff")]
+[Authorize]
 public sealed class InvoicesController
     : ControllerBase
 {
@@ -19,6 +19,7 @@ public sealed class InvoicesController
     }
 
     [HttpGet]
+    [Authorize(Policy = "Permission:invoices.view")]
     public async Task<IActionResult> GetAll()
     {
         return Ok(
@@ -26,6 +27,7 @@ public sealed class InvoicesController
     }
 
     [HttpGet("search")]
+    [Authorize(Policy = "Permission:invoices.view")]
     public async Task<IActionResult> Search(
         [FromQuery] InvoiceSearchRequest request)
     {
@@ -33,6 +35,7 @@ public sealed class InvoicesController
     }
 
     [HttpGet("{id:int}")]
+    [Authorize(Policy = "Permission:invoices.view")]
     public async Task<IActionResult> GetById(
         int id)
     {
@@ -41,6 +44,7 @@ public sealed class InvoicesController
     }
 
     [HttpGet("{id:int}/pdf")]
+    [Authorize(Policy = "Permission:invoices.download")]
     public async Task<IActionResult> GetPdf(
         int id)
     {

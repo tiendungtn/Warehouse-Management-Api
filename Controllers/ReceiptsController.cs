@@ -19,7 +19,7 @@ public sealed class ReceiptsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:receipts.view")]
     public async Task<IActionResult> GetAll()
     {
         return Ok(
@@ -27,7 +27,7 @@ public sealed class ReceiptsController : ControllerBase
     }
 
     [HttpGet("search")]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:receipts.view")]
     public async Task<IActionResult> Search(
         [FromQuery] ReceiptSearchRequest request)
     {
@@ -35,7 +35,7 @@ public sealed class ReceiptsController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:receipts.view")]
     public async Task<IActionResult> GetById(int id)
     {
         return Ok(
@@ -43,7 +43,7 @@ public sealed class ReceiptsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Manager,Staff")]
+    [Authorize(Policy = "Permission:receipts.create")]
     public async Task<IActionResult> Create(
         ReceiptRequest request)
     {
@@ -61,7 +61,7 @@ public sealed class ReceiptsController : ControllerBase
     }
 
     [HttpPost("{id:int}/approve")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Policy = "Permission:receipts.approve")]
     public async Task<IActionResult> Approve(int id)
     {
         await _service.ApproveAsync(id);
