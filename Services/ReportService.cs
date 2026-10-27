@@ -346,8 +346,13 @@ public sealed class ReportService
 
         var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "stock";
 
+
         var ordered = sortBy switch
         {
+            "id" => descending
+                ? query.OrderByDescending(x => x.Id)
+                : query.OrderBy(x => x.Id),
+
             "code" => descending
                 ? query.OrderByDescending(x => x.ProductCode)
                 : query.OrderBy(x => x.ProductCode),
@@ -365,14 +370,13 @@ public sealed class ReportService
                 : query.OrderBy(x => x.StockQuantity),
 
             "value" => descending
-                ? query.OrderByDescending(
-                    x => x.StockQuantity * x.Price)
-                : query.OrderBy(
-                    x => x.StockQuantity * x.Price),
+                ? query.OrderByDescending(x => x.StockQuantity * x.Price)
+                : query.OrderBy(x => x.StockQuantity * x.Price),
 
             _ => throw new ArgumentException(
-                "SortBy phải là code, name, price, stock hoặc value.")
+                "SortBy phải là id, code, name, price, stock hoặc value.")
         };
+
 
         var totalItems = await query.CountAsync();
 

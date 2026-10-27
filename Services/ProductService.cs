@@ -136,6 +136,10 @@ public sealed class ProductService
 
         query = (request.SortBy?.Trim().ToLowerInvariant()) switch
         {
+            "id" => descending
+                ? query.OrderByDescending(x => x.Id)
+                : query.OrderBy(x => x.Id),
+
             "code" => descending
                 ? query.OrderByDescending(x => x.ProductCode)
                 : query.OrderBy(x => x.ProductCode),
@@ -153,8 +157,9 @@ public sealed class ProductService
                 : query.OrderBy(x => x.ProductName),
 
             _ => throw new ArgumentException(
-                "SortBy phải là name, code, price hoặc stock.")
+                "SortBy phải là id, name, code, price hoặc stock.")
         };
+
 
         var totalItems = await query.CountAsync();
 

@@ -88,8 +88,14 @@ public sealed class CategoryService
             "desc",
             StringComparison.OrdinalIgnoreCase);
 
-        query = request.SortBy.Trim().ToLowerInvariant() switch
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant() ?? "name";
+
+        query = sortBy switch
         {
+            "id" => descending
+                ? query.OrderByDescending(x => x.Id)
+                : query.OrderBy(x => x.Id),
+
             "count" => descending
                 ? query.OrderByDescending(x => x.Products.Count)
                 : query.OrderBy(x => x.Products.Count),
@@ -99,8 +105,9 @@ public sealed class CategoryService
                 : query.OrderBy(x => x.CategoryName),
 
             _ => throw new ArgumentException(
-                "SortBy phải là name hoặc count.")
+                "SortBy phải là id, name hoặc count.")
         };
+
 
         var totalItems = await query.CountAsync();
 
