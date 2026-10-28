@@ -163,12 +163,6 @@ public sealed class UserService
                 "Danh sách PermissionOverrides không được null.");
         }
 
-        if (requested.Count > 2)
-        {
-            throw new InvalidOperationException(
-                "Mỗi người dùng chỉ được ghi đè tối đa 2 quyền.");
-        }
-
         if (permissionMode == "RoleBased" && requested.Count > 0)
         {
             throw new InvalidOperationException(
@@ -251,7 +245,7 @@ public sealed class UserService
             {
                 throw new InvalidOperationException(
                     $"Quyền '{item.Code}' trùng với quyền cơ sở " +
-                    "của vai trò '{user.Role}'; không cần ghi đè.");
+                    $"của vai trò '{user.Role}'; không cần ghi đè.");
             }
         }
 

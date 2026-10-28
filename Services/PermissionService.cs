@@ -102,10 +102,6 @@ public sealed class PermissionService
         if (permissionMode is not ("RoleBased" or "Custom"))
             throw new ArgumentException(
                 "PermissionMode chỉ nhận RoleBased hoặc Custom.");
-
-        if (requested.Count > 2)
-            throw new InvalidOperationException(
-                "Mỗi người dùng chỉ được ghi đè tối đa 2 quyền.");
         if (permissionMode == "RoleBased" && requested.Count > 0)
         {
             throw new InvalidOperationException(
