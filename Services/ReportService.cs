@@ -116,67 +116,134 @@ public sealed class ReportService
         );
     }
 
-    public async Task<RevenueReportDto>
-        GetRevenueReportAsync(
-            DateTime? fromDate,
-            DateTime? toDate)
+    public async Task<MonthlyRevenueReportDto>
+    GetMonthlyRevenueReportAsync(
+        DateTime? fromDate,
+        DateTime? toDate)
     {
+        if (fromDate.HasValue &&
+            toDate.HasValue &&
+            fromDate.Value.Date > toDate.Value.Date)
+        {
+            throw new ArgumentException(
+                "Ngày bắt đầu không được sau ngày kết thúc.");
+        }
+
+        // Tính khoảng ngày theo dạng [đầu ngày, đầu ngày kế tiếp).
         var query = _context.Invoices
             .AsNoTracking()
-            .Include(x => x.Issue)
             .AsQueryable();
 
         if (fromDate.HasValue)
         {
-            var fromUtc =
-                DateTime.SpecifyKind(
-                    fromDate.Value.Date,
-                    DateTimeKind.Utc);
+            var start = DateTime.SpecifyKind(
+                fromDate.Value.Date,
+                DateTimeKind.Utc);
 
-            query = query.Where(
-                x => x.CreatedDate >=
-                     fromUtc);
+            query = query.Where(x => x.CreatedDate >= start);
         }
 
         if (toDate.HasValue)
         {
-            var endDate =
-                toDate.Value.Date
-                    .AddDays(1)
-                    .AddTicks(-1);
+            var endExclusive = DateTime.SpecifyKind(
+                toDate.Value.Date.AddDays(1),
+                DateTimeKind.Utc);
 
-            var endUtc =
-                DateTime.SpecifyKind(
-                    endDate,
-                    DateTimeKind.Utc);
-
-            query = query.Where(
-                x => x.CreatedDate <=
-                     endUtc);
+            query = query.Where(x => x.CreatedDate < endExclusive);
         }
 
-        var invoices =
-            await query
-                .OrderByDescending(
-                    x => x.CreatedDate)
-                .Select(x =>
-                    new InvoiceListDto(
-                        x.Id,
-                        x.InvoiceCode,
-                        x.IssueId,
-                        x.Issue!.IssueCode,
-                        x.CustomerName,
-                        x.TotalAmount,
-                        x.CreatedDate
-                    ))
-                .ToListAsync();
+        // Lấy các hóa đơn và dòng hàng của phiếu xuất liên kết.
+        // Không lọc theo trạng thái: tuân theo lựa chọn all-existing.
+        var invoices = await query
+            .Include(x => x.Issue)
+                .ThenInclude(x => x!.IssueDetails)
+                    .ThenInclude(x => x.Product)
+            .OrderByDescending(x => x.CreatedDate)
+            .ToListAsync();
 
-        return new RevenueReportDto(
+        var invoiceDetails = invoices.Select(invoice =>
+            new RevenueInvoiceDetailDto(
+                invoice.Id,
+                invoice.InvoiceCode,
+                invoice.Issue?.IssueCode ?? string.Empty,
+                invoice.CustomerName,
+                invoice.CreatedDate,
+                invoice.TotalAmount,
+                (invoice.Issue?.IssueDetails
+                    ?? new List<QuanLyKho.Models.IssueDetail>())
+                    .Select(detail => new RevenueProductDto(
+                        detail.ProductId,
+                        detail.Product?.ProductCode ?? string.Empty,
+                        detail.Product?.ProductName ?? string.Empty,
+                        detail.Product?.Unit ?? string.Empty,
+                        detail.Quantity,
+                        detail.UnitPrice,
+                        detail.Quantity * detail.UnitPrice
+                    ))
+                    .ToList()
+            )).ToList();
+
+        var months = invoiceDetails
+            .GroupBy(x => new
+            {
+                x.CreatedDate.Year,
+                x.CreatedDate.Month
+            })
+            .OrderBy(x => x.Key.Year)
+            .ThenBy(x => x.Key.Month)
+            .Select(group =>
+            {
+                var monthInvoices = group
+                    .OrderByDescending(x => x.CreatedDate)
+                    .ToList();
+
+                return new RevenueMonthDto(
+                    group.Key.Year,
+                    group.Key.Month,
+                    $"Tháng {group.Key.Month:D2}/{group.Key.Year}",
+                    monthInvoices.Sum(x => x.TotalAmount),
+                    monthInvoices.Count,
+                    monthInvoices.Count == 0
+                        ? 0m
+                        : monthInvoices.Sum(x => x.TotalAmount)
+                            / monthInvoices.Count,
+                    null,
+                    monthInvoices
+                );
+            })
+            .ToList();
+
+        // Tính mức thay đổi so với tháng liền trước trong chuỗi tháng
+        // có dữ liệu. Nếu tháng trước bằng 0 thì không tính phần trăm.
+        for (var i = 0; i < months.Count; i++)
+        {
+            if (i == 0)
+                continue;
+
+            var previous = months[i - 1].TotalRevenue;
+
+            var change = previous == 0
+                ? (decimal?)null
+                : (months[i].TotalRevenue - previous)
+                    / previous * 100m;
+
+            months[i] = months[i] with
+            {
+                ChangePercent = change
+            };
+        }
+
+        var totalRevenue = invoices.Sum(x => x.TotalAmount);
+
+        return new MonthlyRevenueReportDto(
             fromDate,
             toDate,
-            invoices.Sum(
-                x => x.TotalAmount),
-            invoices
+            totalRevenue,
+            invoices.Count,
+            invoices.Count == 0
+                ? 0m
+                : totalRevenue / invoices.Count,
+            months
         );
     }
 
@@ -489,6 +556,114 @@ public sealed class ReportService
             outOfStockCount,
             lowStockCount,
             Array.Empty<StockReportItemDto>());
+    }
+
+    public async Task<(byte[] Content, string FileName)>
+    ExportRevenueCsvAsync(
+        DateTime? fromDate,
+        DateTime? toDate,
+        string type)
+    {
+        var report = await GetMonthlyRevenueReportAsync(
+            fromDate,
+            toDate);
+
+        var builder = new StringBuilder();
+
+        if (string.Equals(
+            type, "monthly",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AppendLine(
+                "Nam,Thang,Doanh thu,So hoa don," +
+                "Gia tri trung binh,Thay doi phan tram");
+
+            foreach (var month in report.Months)
+            {
+                builder.AppendLine(string.Join(",",
+                    month.Year,
+                    month.Month,
+                    month.TotalRevenue,
+                    month.InvoiceCount,
+                    month.AverageInvoiceValue,
+                    month.ChangePercent?.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture)
+                        ?? ""));
+            }
+        }
+        else if (string.Equals(
+            type, "detail",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AppendLine(
+                "Nam,Thang,Ma hoa don,Ma phieu xuat," +
+                "Khach hang,Ngay lap,Ma san pham,Ten san pham," +
+                "Don vi,So luong,Don gia,Thanh tien," +
+                "Tong tien hoa don");
+
+            foreach (var month in report.Months)
+            {
+                foreach (var invoice in month.Invoices)
+                {
+                    if (invoice.Items.Count == 0)
+                    {
+                        builder.AppendLine(string.Join(",",
+                            month.Year,
+                            month.Month,
+                            Csv(invoice.InvoiceCode),
+                            Csv(invoice.IssueCode),
+                            Csv(invoice.CustomerName),
+                            invoice.CreatedDate.ToString("yyyy-MM-dd"),
+                            "", "", "", "", "", "",
+                            invoice.TotalAmount));
+                        continue;
+                    }
+
+                    foreach (var item in invoice.Items)
+                    {
+                        builder.AppendLine(string.Join(",",
+                            month.Year,
+                            month.Month,
+                            Csv(invoice.InvoiceCode),
+                            Csv(invoice.IssueCode),
+                            Csv(invoice.CustomerName),
+                            invoice.CreatedDate.ToString("yyyy-MM-dd"),
+                            Csv(item.ProductCode),
+                            Csv(item.ProductName),
+                            Csv(item.Unit),
+                            item.Quantity,
+                            item.UnitPrice,
+                            item.LineTotal,
+                            invoice.TotalAmount));
+                    }
+                }
+            }
+        }
+        else
+        {
+            throw new ArgumentException(
+                "Loại xuất phải là monthly hoặc detail.");
+        }
+
+        var preamble = Encoding.UTF8.GetPreamble();
+        var body = Encoding.UTF8.GetBytes(builder.ToString());
+        var content = new byte[preamble.Length + body.Length];
+
+        Buffer.BlockCopy(
+            preamble, 0, content, 0, preamble.Length);
+        Buffer.BlockCopy(
+            body, 0, content, preamble.Length, body.Length);
+
+        return (
+            content,
+            $"BaoCaoDoanhThu_{type}_{DateTime.UtcNow:yyyyMMddHHmmss}.csv"
+        );
+    }
+
+    private static string Csv(string? value)
+    {
+        var escaped = (value ?? "").Replace("\"", "\"\"");
+        return $"\"{escaped}\"";
     }
 
 }

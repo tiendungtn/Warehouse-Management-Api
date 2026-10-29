@@ -33,3 +33,43 @@ public sealed record DashboardDto(
     int PendingIssues,
     decimal InventoryValue,
     decimal Revenue);
+
+public sealed record RevenueProductDto(
+    int ProductId,
+    string ProductCode,
+    string ProductName,
+    string Unit,
+    int Quantity,
+    decimal UnitPrice,
+    decimal LineTotal
+);
+
+public sealed record RevenueInvoiceDetailDto(
+    int Id,
+    string InvoiceCode,
+    string IssueCode,
+    string CustomerName,
+    DateTime CreatedDate,
+    decimal TotalAmount,
+    IReadOnlyList<RevenueProductDto> Items
+);
+
+public sealed record RevenueMonthDto(
+    int Year,
+    int Month,
+    string MonthLabel,
+    decimal TotalRevenue,
+    int InvoiceCount,
+    decimal AverageInvoiceValue,
+    decimal? ChangePercent,
+    IReadOnlyList<RevenueInvoiceDetailDto> Invoices
+);
+
+public sealed record MonthlyRevenueReportDto(
+    DateTime? FromDate,
+    DateTime? ToDate,
+    decimal TotalRevenue,
+    int InvoiceCount,
+    decimal AverageInvoiceValue,
+    IReadOnlyList<RevenueMonthDto> Months
+);

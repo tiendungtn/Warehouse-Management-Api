@@ -50,14 +50,30 @@ public sealed class ReportsController
     [HttpGet("revenue")]
     [Authorize(Policy = "Permission:reports.revenue.view")]
     public async Task<IActionResult> Revenue(
-        [FromQuery] DateTime? fromDate,
-        [FromQuery] DateTime? toDate)
+    [FromQuery] DateTime? fromDate,
+    [FromQuery] DateTime? toDate)
     {
-        return Ok(
-            await _service
-                .GetRevenueReportAsync(
-                    fromDate,
-                    toDate));
+        return Ok(await _service.GetMonthlyRevenueReportAsync(
+            fromDate,
+            toDate));
+    }
+
+    [HttpGet("revenue/export")]
+    [Authorize(Policy = "Permission:reports.revenue.export")]
+    public async Task<IActionResult> ExportRevenue(
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] string type = "monthly")
+    {
+        var result = await _service.ExportRevenueCsvAsync(
+            fromDate,
+            toDate,
+            type);
+
+        return File(
+            result.Content,
+            "text/csv; charset=utf-8",
+            result.FileName);
     }
 
     [HttpGet("stock/search")]
