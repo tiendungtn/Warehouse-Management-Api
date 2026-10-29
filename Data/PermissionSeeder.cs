@@ -44,6 +44,7 @@ public static class PermissionSeeder
         new("reports.stock.view", "Xem báo cáo tồn kho", "Reports"),
         new("reports.stock.export", "Xuất báo cáo tồn kho", "Reports"),
         new("reports.revenue.view", "Xem báo cáo doanh thu", "Reports"),
+        new("reports.revenue.export", "Xuất báo cáo doanh thu", "Reports"),
 
         new("users.view", "Xem người dùng", "Users"),
         new("users.create", "Tạo người dùng", "Users"),
@@ -82,7 +83,8 @@ public static class PermissionSeeder
         "invoices.download",
         "reports.stock.view",
         "reports.stock.export",
-        "reports.revenue.view"
+        "reports.revenue.view",
+        "reports.revenue.export"
     ];
 
     private static readonly HashSet<string> StaffPermissions =
